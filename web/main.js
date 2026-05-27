@@ -27,38 +27,6 @@ function updateRouteMessage(message, isError = false) {
     routeMessageElement.classList.toggle('route-message--error', Boolean(isError));
 }
 
-async function loadWeather() {
-    try {
-        const response = await fetch(`/api/weather?lat=${START_COORDINATES.lat}&lng=${START_COORDINATES.lng}`);
-        if (!response.ok) throw new Error('weather API error');
-        const data = await response.json();
-
-        // 現在の時刻に対応するインデックスを探す（例: "2026-05-27T14:00"）
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        const currentHourStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
-        const idx = data.hourly.time.indexOf(currentHourStr);
-
-        const el = document.getElementById('weather-info');
-        if (!el) return;
-
-        if (idx === -1) {
-            el.textContent = '天気情報を取得できませんでした';
-            return;
-        }
-
-        const temp = data.hourly.temperature_2m[idx];
-        const rain = data.hourly.precipitation_probability[idx];
-
-        const icon = rain >= 60 ? '🌧️' : rain >= 30 ? '⛅' : '☀️';
-        el.textContent = `${icon} ${temp}°C　降水確率 ${rain}%`;
-    } catch (error) {
-        console.error('天気情報の取得に失敗しました', error);
-        const el = document.getElementById('weather-info');
-        if (el) el.textContent = '天気情報を取得できませんでした';
-    }
-}
-
 async function loadFacilities() {
     try {
         const [resFacilities, resCoins] = await Promise.all([
@@ -581,5 +549,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     loadFacilities();
-    loadWeather();
 });
