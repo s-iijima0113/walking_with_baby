@@ -33,6 +33,17 @@ body {
     color: rgba(27, 42, 75, 0.72);
 }
 
+.weather-info {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 14px;
+    border-radius: 9999px;
+    background: rgba(63, 112, 190, 0.1);
+    border: 1px solid rgba(63, 112, 190, 0.2);
+    font-size: 0.9rem;
+    color: #1b2a4b;
+}
+
 form {
     width: 100%;
     padding: 24px;
