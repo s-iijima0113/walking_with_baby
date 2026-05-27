@@ -1,8 +1,11 @@
 package main
 
 import (
+	"babywalking/internal/anthropic"
 	"babywalking/internal/csv"
 	"babywalking/internal/db"
+	"babywalking/internal/weather"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,6 +19,7 @@ func main() {
 
 	//http.HandleFunc("/", handler)
 	http.HandleFunc("/search", searchHandler)
+	http.HandleFunc("/api/anthropic", anthropicHandler)
 
 	//DB接続
 	db.InitDB()
@@ -97,6 +101,9 @@ func main() {
 	// FeelSpotRandomAPI 実行
 	db.FeelSpotRandomAPI()
 
+	// Web API: 天気予報
+	weather.WeatherAPI()
+
 	// feel_spots のデータ投入
 	db.SeedFeelSpots()
 
@@ -137,4 +144,33 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	//fmt.Fprintf(w, "検索条件を受け取りました!!!!!!")
 	fmt.Fprintf(w, "検索条件を受け取りましたfeel=%s, facility=%s, time=%s, shade=%s", feelValues, facilityValues, time, shade)
+}
+
+func anthropicHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POSTメソッドで送信してください", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Prompt == "" {
+		http.Error(w, "prompt is required", http.StatusBadRequest)
+		return
+	}
+
+	result, err := anthropic.Complete(req.Prompt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"completion": result})
 }
