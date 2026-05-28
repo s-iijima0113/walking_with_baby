@@ -18,6 +18,7 @@ let feelMarkers = [];
 let startMarker = null;
 
 let routeMessageElement;
+let weatherNow = null; // { temp: number, rain: number }
 
 function updateRouteMessage(message, isError = false) {
     if (!routeMessageElement) {
@@ -50,12 +51,42 @@ async function loadWeather() {
         const temp = data.hourly.temperature_2m[idx];
         const rain = data.hourly.precipitation_probability[idx];
 
+        weatherNow = { temp, rain };
         const icon = rain >= 60 ? '🌧️' : rain >= 30 ? '⛅' : '☀️';
         el.textContent = `${icon} ${temp}°C　降水確率 ${rain}%`;
     } catch (error) {
         console.error('天気情報の取得に失敗しました', error);
         const el = document.getElementById('weather-info');
         if (el) el.textContent = '天気情報を取得できませんでした';
+    }
+}
+
+function showWeatherAdvisory() {
+    const el = document.getElementById('weather-advisory');
+    if (!el) return;
+
+    if (!weatherNow) {
+        el.textContent = '';
+        return;
+    }
+
+    const { temp, rain } = weatherNow;
+
+    if (rain >= 60) {
+        el.textContent = `☂️ 降水確率が高めです（${rain}%）。短めのルートをおすすめします。`;
+        el.className = 'weather-advisory weather-advisory--rain';
+    } else if (rain >= 30) {
+        el.textContent = `🌂 にわか雨の可能性があります（${rain}%）。折りたたみ傘を持っていくと安心です。`;
+        el.className = 'weather-advisory weather-advisory--caution';
+    } else if (temp >= 35) {
+        el.textContent = `🌡️ 気温が高くなっています（${temp}°C）。熱中症に注意し、水分補給をこまめに。`;
+        el.className = 'weather-advisory weather-advisory--heat';
+    } else if (temp >= 30) {
+        el.textContent = `☀️ 暑い日です（${temp}°C）。こまめな水分補給を忘れずに。`;
+        el.className = 'weather-advisory weather-advisory--caution';
+    } else {
+        el.textContent = '';
+        el.className = 'weather-advisory';
     }
 }
 
@@ -201,6 +232,7 @@ async function handleFormSubmit(event) {
     }
 
     const totalMeters = walkingTimeMinutes * WALKING_SPEED_METERS_PER_MIN;
+    showWeatherAdvisory();
     updateRouteMessage('ルートを計算しています…');
 
     let routePlan;
