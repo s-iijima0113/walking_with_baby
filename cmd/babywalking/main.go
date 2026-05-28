@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 	//http.HandleFunc("/", handler)
 	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/api/anthropic", anthropicHandler)
+	http.HandleFunc("/api/suggest", suggestHandler)
 
 	//DB接続
 	db.InitDB()
@@ -144,6 +146,65 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	//fmt.Fprintf(w, "検索条件を受け取りました!!!!!!")
 	fmt.Fprintf(w, "検索条件を受け取りましたfeel=%s, facility=%s, time=%s, shade=%s", feelValues, facilityValues, time, shade)
+}
+
+type weatherInfo struct {
+	Temp float64 `json:"temp"`
+	Rain float64 `json:"rain"`
+}
+
+type suggestRequest struct {
+	Weather     weatherInfo `json:"weather"`
+	Feels       []string    `json:"feels"`
+	SpotNames   []string    `json:"spot_names"`
+	WalkMinutes int         `json:"walk_minutes"`
+}
+
+func suggestHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POSTメソッドで送信してください", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req suggestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	prompt := buildRoutePrompt(req)
+	text, err := anthropic.Complete(prompt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": text})
+}
+
+func buildRoutePrompt(req suggestRequest) string {
+	weatherDesc := fmt.Sprintf("気温%.0f°C、降水確率%.0f%%", req.Weather.Temp, req.Weather.Rain)
+
+	feelStr := "なし"
+	if len(req.Feels) > 0 {
+		feelStr = strings.Join(req.Feels, "・")
+	}
+
+	spotStr := "特定のスポットなし"
+	if len(req.SpotNames) > 0 {
+		spotStr = strings.Join(req.SpotNames, "、")
+	}
+
+	return fmt.Sprintf(`あなたは赤ちゃん連れの親向けお散歩アプリのアシスタントです。
+以下の情報をもとに、自然で温かみのある日本語でお散歩ルートの紹介文を2〜3文で書いてください。
+
+天気: %s
+気分(Feel): %s
+訪問スポット: %s
+歩行時間: %d分
+
+紹介文のみを返してください。余計な説明は不要です。`, weatherDesc, feelStr, spotStr, req.WalkMinutes)
 }
 
 func anthropicHandler(w http.ResponseWriter, r *http.Request) {

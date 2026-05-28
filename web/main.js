@@ -90,6 +90,27 @@ function showWeatherAdvisory() {
     }
 }
 
+async function fetchRouteSuggestion(feels, spots, walkMinutes) {
+    if (!weatherNow) return null;
+    try {
+        const response = await fetch('/api/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                weather: weatherNow,
+                feels: feels,
+                spot_names: spots.map(s => s.name),
+                walk_minutes: walkMinutes
+            })
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.message || null;
+    } catch {
+        return null;
+    }
+}
+
 async function loadFacilities() {
     try {
         const [resFacilities, resCoins] = await Promise.all([
@@ -300,6 +321,11 @@ async function handleFormSubmit(event) {
     } else {
         updateRouteMessage(`約 ${walkingTimeMinutes} 分のお散歩ルートを描画しました。`);
     }
+
+    // APIキーが設定されていればClaudeの紹介文に切り替える
+    fetchRouteSuggestion(selectedFeels, spots, walkingTimeMinutes).then(suggestion => {
+        if (suggestion) updateRouteMessage(suggestion);
+    });
 }
 
 function clearFeelMarkers() {
