@@ -10,37 +10,41 @@ import (
 	"time"
 )
 
-const apiURL = "https://api.anthropic.com/v1/complete"
+const apiURL = "https://api.anthropic.com/v1/messages"
 
-// CompleteRequest はAnthropicの完了APIリクエストです。
-type CompleteRequest struct {
-	Model              string  `json:"model"`
-	Prompt             string  `json:"prompt"`
-	MaxTokensToSample  int     `json:"max_tokens_to_sample"`
-	Temperature        float64 `json:"temperature"`
-	TopP               float64 `json:"top_p,omitempty"`
-	StopSequences      []string `json:"stop_sequences,omitempty"`
+type message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
-// CompleteResponse はAnthropicの完了APIレスポンスです。
-type CompleteResponse struct {
-	Completion string `json:"completion"`
+type messagesRequest struct {
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	Messages  []message `json:"messages"`
 }
 
-// Complete calls the Anthropic completion API and returns the generated text.
+type contentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type messagesResponse struct {
+	Content []contentBlock `json:"content"`
+}
+
+// Complete はAnthropicのMessages APIを呼び出してテキストを生成します。
 func Complete(prompt string) (string, error) {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
 		return "", errors.New("ANTHROPIC_API_KEY is not set")
 	}
 
-	payload := CompleteRequest{
-		Model:             "claude-3.5",
-		Prompt:            prompt,
-		MaxTokensToSample: 500,
-		Temperature:       0.7,
-		TopP:              1.0,
-		StopSequences:     []string{"\n"},
+	payload := messagesRequest{
+		Model:     "claude-haiku-4-5-20251001",
+		MaxTokens: 500,
+		Messages: []message{
+			{Role: "user", Content: prompt},
+		},
 	}
 
 	body, err := json.Marshal(payload)
@@ -53,9 +57,10 @@ func Complete(prompt string) (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
@@ -68,12 +73,16 @@ func Complete(prompt string) (string, error) {
 		return "", fmt.Errorf("anthropic API error: status=%d body=%v", resp.StatusCode, errResp)
 	}
 
-	var result CompleteResponse
+	var result messagesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return result.Completion, nil
+	if len(result.Content) == 0 {
+		return "", errors.New("empty response from anthropic")
+	}
+
+	return result.Content[0].Text, nil
 }
 
 // CallClaude は指定したプロンプトで Anthropic を呼び出します。
